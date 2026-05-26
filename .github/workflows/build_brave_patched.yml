@@ -1,6 +1,6 @@
-﻿name: Build Patched Brave
+name: Build Patched Brave
 
-'on':
+on:
   workflow_dispatch:
 
 concurrency:
