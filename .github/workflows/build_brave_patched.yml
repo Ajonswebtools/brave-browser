@@ -178,6 +178,18 @@ jobs:
           }
           & $scriptPath
 
+      - name: Patch download_dep.py for brave_chromium_utils import
+        run: |
+          $file = "C:\brave\src\brave\build\download_dep.py"
+          $content = Get-Content $file -Raw
+          $insert = "import sys, os`nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))`n"
+          if (-not $content.StartsWith($insert)) {
+            Set-Content $file -Value ($insert + $content) -Encoding utf8
+            Write-Host "Patched download_dep.py successfully"
+          } else {
+            Write-Host "Already patched, skipping"
+          }
+
       - name: Run Chromium hooks
         timeout-minutes: 90
         run: |
@@ -185,7 +197,6 @@ jobs:
           $env:DEPOT_TOOLS_WIN_TOOLCHAIN = "0"
           $env:GCLIENT_PY3 = "1"
           $env:DEPOT_TOOLS_UPDATE = "0"
-          $env:PYTHONPATH = "C:\brave\src\brave\build;C:\brave\src\brave;C:\brave\src"
           Set-Location C:\brave
           gclient runhooks
 
