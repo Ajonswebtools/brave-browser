@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: brave-patched-build
-  cancel-in-progress: true
+  group: brave-patched-build-${{ github.run_id }}
+  cancel-in-progress: false
 
 env:
   BRAVE_CORE_REF: master
