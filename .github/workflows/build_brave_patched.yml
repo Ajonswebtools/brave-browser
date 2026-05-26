@@ -1,0 +1,245 @@
+﻿name: Build Patched Brave
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: brave-patched-build
+  cancel-in-progress: true
+
+env:
+  BRAVE_CORE_REF: master
+  DEPOT_TOOLS_WIN_TOOLCHAIN: 1
+  USE_BRAVE_HERMETIC_TOOLCHAIN: 1
+  PYTHONUNBUFFERED: 1
+
+jobs:
+  build-windows-x64:
+    runs-on: windows-2022
+    timeout-minutes: 600
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout DMask repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Maximize disk space
+        run: |
+          $ErrorActionPreference = 'Continue'
+
+          function Remove-IfExists {
+            param([string]$PathToRemove)
+            if ([string]::IsNullOrWhiteSpace($PathToRemove)) {
+              return
+            }
+            if (Test-Path -LiteralPath $PathToRemove) {
+              Write-Host "Removing $PathToRemove"
+              Remove-Item -LiteralPath $PathToRemove -Recurse -Force -ErrorAction SilentlyContinue
+            }
+          }
+
+          $targets = @(
+            'C:\Program Files\Android',
+            'C:\Android',
+            'C:\ProgramData\chocolatey\lib\android-sdk',
+            'C:\hostedtoolcache\windows\CodeQL',
+            'C:\hostedtoolcache\windows\Ruby',
+            'C:\hostedtoolcache\windows\PyPy',
+            "$env:USERPROFILE\.cargo",
+            "$env:USERPROFILE\.ghcup",
+            "$env:USERPROFILE\AppData\Local\Android",
+            'C:\Windows\SoftwareDistribution\Download'
+          )
+
+          foreach ($target in $targets) {
+            Remove-IfExists -PathToRemove $target
+          }
+
+          if (Get-Command docker -ErrorAction SilentlyContinue) {
+            docker system prune -af --volumes | Out-Host
+          }
+
+      - name: Show available disk space after cleanup
+        run: |
+          [System.IO.DriveInfo]::GetDrives() |
+            Where-Object { $_.DriveType -eq 'Fixed' -and $_.IsReady } |
+            ForEach-Object {
+              [PSCustomObject]@{
+                Drive = $_.Name
+                FreeGB = [math]::Round($_.AvailableFreeSpace / 1GB, 2)
+                TotalGB = [math]::Round($_.TotalSize / 1GB, 2)
+              }
+            } |
+            Format-Table -AutoSize
+
+      - name: Install depot_tools
+        run: |
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git C:\depot_tools
+          'C:\depot_tools' | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $env:PATH = "C:\depot_tools;$env:PATH"
+          gclient --version
+
+      - name: Configure Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Create brave source directory
+        run: |
+          New-Item -ItemType Directory -Force C:\brave | Out-Null
+          Set-Location C:\brave
+
+          # Write the .gclient config manually
+          @'
+          solutions = [
+            {
+              "name": "src",
+              "url": "https://chromium.googlesource.com/chromium/src.git",
+              "managed": False,
+              "custom_deps": {},
+              "custom_vars": {
+                "checkout_pgo_profiles": False,
+                "checkout_configuration": "minimal",
+                "checkout_nacl": False,
+                "checkout_android": False,
+                "checkout_chromeos": False,
+                "checkout_cast": False,
+                "checkout_ios": False,
+                "checkout_fuchsia": False,
+                "checkout_linux": False,
+                "checkout_mac": False,
+                "checkout_traffic_annotation_tools": False,
+                "checkout_fuzzer_corpus": False,
+              },
+            },
+            {
+              "name": "src/brave",
+              "url": "https://github.com/brave/brave-core.git",
+              "managed": False,
+              "custom_deps": {},
+            },
+          ]
+          target_os = ["win"]
+          target_cpu = ["x64"]
+          '@ | Set-Content -Path C:\brave\.gclient -Encoding ascii
+
+          Write-Host "=== .gclient written ==="
+          Get-Content C:\brave\.gclient
+
+      - name: Configure git for lean sync
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.filemode false
+          git config --global core.fscache true
+          git config --global core.preloadindex true
+          git config --global fetch.parallel 4
+
+      - name: Sync brave source with gclient
+        timeout-minutes: 180
+        run: |
+          $env:PATH = "C:\depot_tools;$env:PATH"
+          $env:DEPOT_TOOLS_WIN_TOOLCHAIN = "1"
+          $env:GIT_CACHE_PATH = "C:\gitcache"
+          $env:GCLIENT_PY3 = "1"
+          $env:DEPOT_TOOLS_UPDATE = "0"
+          $env:GIT_CONFIG_COUNT = "2"
+          $env:GIT_CONFIG_KEY_0 = "fetch.noTags"
+          $env:GIT_CONFIG_VALUE_0 = "true"
+          $env:GIT_CONFIG_KEY_1 = "remote.origin.tagOpt"
+          $env:GIT_CONFIG_VALUE_1 = "--no-tags"
+          Set-Location C:\brave
+
+          # Write a .gitconfig that disables tag fetching globally
+          @'
+          [fetch]
+              noTags = true
+          [remote "origin"]
+              tagOpt = --no-tags
+          '@ | Set-Content -Path "$env:USERPROFILE\.gitconfig" -Encoding ascii
+
+          gclient sync `
+            --no-history `
+            --shallow `
+            --reset `
+            --delete_unversioned_trees `
+            --nohooks `
+            -v
+
+      - name: Apply DMask farbling patch
+        run: |
+          $scriptPath = Join-Path $env:GITHUB_WORKSPACE 'docs\apply_farbling_patch.ps1'
+          if (-not (Test-Path $scriptPath)) {
+            throw "Patch script not found at $scriptPath"
+          }
+          & $scriptPath
+
+      - name: Run Chromium hooks
+        timeout-minutes: 90
+        run: |
+          $env:PATH = "C:\depot_tools;$env:PATH"
+          $env:DEPOT_TOOLS_WIN_TOOLCHAIN = "1"
+          $env:GCLIENT_PY3 = "1"
+          $env:DEPOT_TOOLS_UPDATE = "0"
+          Set-Location C:\brave
+          gclient runhooks
+
+      - name: Configure build
+        run: |
+          Set-Location C:\brave\src
+          New-Item -ItemType Directory -Force -Path out\Release_x64 | Out-Null
+          @'
+          is_debug = false
+          is_official_build = true
+          target_cpu = "x64"
+          brave_channel = "release"
+          enable_nacl = false
+          symbol_level = 0
+          enable_resource_allowlist_generation = false
+          '@ | Set-Content -Path out\Release_x64\args.gn -Encoding ascii
+          gn gen out/Release_x64
+
+      - name: Build installer
+        timeout-minutes: 360
+        run: |
+          Set-Location C:\brave\src
+          autoninja -C out\Release_x64 brave_installer
+
+      - name: Upload patched Brave installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: brave-patched-windows-x64
+          path: |
+            C:\brave\src\out\Release_x64\brave_installer.exe
+            C:\brave\src\out\Release_x64\BraveBrowserSetup.exe
+            C:\brave\src\out\Release_x64\brave_installer_setup.exe
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Print build logs on failure
+        if: failure()
+        run: |
+          $logs = Get-ChildItem -Path C:\brave\src\out\Release_x64 -Filter *.log -Recurse -ErrorAction SilentlyContinue
+          if (-not $logs) {
+            Write-Host 'No .log files found under out\Release_x64'
+            exit 0
+          }
+
+          foreach ($log in $logs) {
+            Write-Host "===== $($log.FullName) ====="
+            Get-Content $log.FullName -Tail 100
+          }
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            C:\brave\src\out\Release_x64\*.log
+            C:\brave\src\out\Release_x64\**\*.log
+          if-no-files-found: warn
+          retention-days: 7
