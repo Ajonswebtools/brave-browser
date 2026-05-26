@@ -185,6 +185,7 @@ jobs:
           $env:DEPOT_TOOLS_WIN_TOOLCHAIN = "0"
           $env:GCLIENT_PY3 = "1"
           $env:DEPOT_TOOLS_UPDATE = "0"
+          $env:PYTHONPATH = "C:\brave\src\brave\build;C:\brave\src\brave;C:\brave\src"
           Set-Location C:\brave
           gclient runhooks
 
