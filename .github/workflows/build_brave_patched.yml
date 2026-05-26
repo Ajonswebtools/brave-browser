@@ -191,14 +191,27 @@ jobs:
           }
 
       - name: Run Chromium hooks
-        timeout-minutes: 90
+        timeout-minutes: 30
         run: |
           $env:PATH = "C:\depot_tools;$env:PATH"
           $env:DEPOT_TOOLS_WIN_TOOLCHAIN = "0"
           $env:GCLIENT_PY3 = "1"
-          $env:DEPOT_TOOLS_UPDATE = "0"
+          $env:GIT_CACHE_PATH = "C:\gitcache"
+          $env:PYTHONPATH = "C:\brave\src\brave\script;C:\brave\src\brave\build;C:\brave\src\build"
+
           Set-Location C:\brave
-          gclient runhooks
+
+          # Run only the essential Chromium hooks, not brave-specific ones
+          # that require internal tooling
+          python3 src/build/vs_toolchain.py update --force
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "vs_toolchain update failed, trying without force"
+            python3 src/build/vs_toolchain.py update
+          }
+
+          # Run gn bootstrap which is the only hook actually needed for build
+          Set-Location C:\brave\src
+          python3 tools/gn/bootstrap/bootstrap.py --skip-generate-buildfiles
 
       - name: Configure build
         run: |
