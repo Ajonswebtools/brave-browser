@@ -1,13 +1,68 @@
-$target = "C:\brave\src\brave\components\brave_shields\core\browser\brave_shields_utils.cc"
-$content = Get-Content $target -Raw -Encoding UTF8
+$target = if ($env:DMASK_FARBLING_PATCH_TARGET) {
+  $env:DMASK_FARBLING_PATCH_TARGET
+} else {
+  "C:\brave\src\brave\components\brave_shields\core\browser\brave_shields_utils.cc"
+}
 
-if ($content -match "GetSeedOverrideToken") {
+function Show-NearbyMatches {
+  param(
+    [string[]]$Lines,
+    [string]$Pattern,
+    [string]$Label
+  )
+
+  Write-Host "=== Nearby lines for $Label ==="
+  $found = $false
+  for ($i = 0; $i -lt $Lines.Count; $i++) {
+    if ($Lines[$i] -match $Pattern) {
+      $found = $true
+      $start = [Math]::Max(0, $i - 2)
+      $end = [Math]::Min($Lines.Count - 1, $i + 2)
+      for ($j = $start; $j -le $end; $j++) {
+        Write-Host "$($j + 1): $($Lines[$j])"
+      }
+      Write-Host "---"
+    }
+  }
+
+  if (-not $found) {
+    Write-Host "No matches for pattern: $Pattern"
+  }
+}
+
+Write-Host "=== DMask farbling patch target ==="
+Write-Host $target
+
+if (-not (Test-Path -LiteralPath $target)) {
+  throw "Target file does not exist: $target"
+}
+
+$rawContent = Get-Content $target -Raw -Encoding UTF8
+$content = $rawContent -replace "`r`n", "`n"
+$lines = $content -split "`n"
+
+$hasGetFarblingToken = $content.Contains("GetFarblingToken(")
+$hasHttpGuard = $content.Contains("if (!url.SchemeIsHTTPOrHTTPS()) {`n    return token;`n  }")
+$alreadyApplied = $content.Contains("GetSeedOverrideToken")
+
+Write-Host "=== Patch preflight ==="
+Write-Host "GetFarblingToken found: $hasGetFarblingToken"
+Write-Host "HTTP/HTTPS guard anchor found: $hasHttpGuard"
+Write-Host "Patch already applied: $alreadyApplied"
+
+if (-not $hasGetFarblingToken) {
+  Show-NearbyMatches -Lines $lines -Pattern "GetFarblingToken|FarblingToken" -Label "GetFarblingToken"
+  throw "Could not find GetFarblingToken in $target"
+}
+
+if ($alreadyApplied) {
   Write-Host "Patch already applied"
   exit 0
 }
 
 $includeNeedle = "#include ""base/logging.h"""
 if (-not $content.Contains($includeNeedle)) {
+  Show-NearbyMatches -Lines $lines -Pattern '^#include|logging\.h' -Label "include anchor"
   throw "Could not find include anchor: $includeNeedle"
 }
 
@@ -46,6 +101,8 @@ static base::Token GetSeedOverrideToken(const GURL& url) {
 
 $namespaceNeedle = "}  // namespace"
 if (-not $content.Contains($namespaceNeedle)) {
+  $updatedLines = $content -split "`n"
+  Show-NearbyMatches -Lines $updatedLines -Pattern 'namespace' -Label "namespace anchor"
   throw "Could not find namespace anchor: $namespaceNeedle"
 }
 
@@ -79,6 +136,8 @@ $needle = @'
 '@
 
 if (-not $content.Contains($needle)) {
+  $updatedLines = $content -split "`n"
+  Show-NearbyMatches -Lines $updatedLines -Pattern 'GetFarblingToken|SchemeIsHTTPOrHTTPS|farbling_token' -Label "GetFarblingToken HTTP(S) guard anchor"
   throw "Could not find GetFarblingToken HTTP(S) guard anchor"
 }
 
@@ -87,9 +146,10 @@ $content = $content.Replace(
   $needle + $overrideBlock
 )
 
-Set-Content $target -Value $content -Encoding UTF8 -NoNewline
+[System.IO.File]::WriteAllText($target, $content, [System.Text.UTF8Encoding]::new($false))
 
-if (Get-Content $target -Raw | Select-String "GetSeedOverrideToken") {
+$finalContent = (Get-Content $target -Raw -Encoding UTF8) -replace "`r`n", "`n"
+if ($finalContent.Contains("GetSeedOverrideToken")) {
   Write-Host "Patch applied successfully"
 } else {
   throw "Patch verification failed"
