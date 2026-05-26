@@ -42,7 +42,8 @@ $content = $rawContent -replace "`r`n", "`n"
 $lines = $content -split "`n"
 
 $hasGetFarblingToken = $content.Contains("GetFarblingToken(")
-$hasHttpGuard = $content.Contains("if (!url.SchemeIsHTTPOrHTTPS()) {`n    return token;`n  }")
+$httpGuardPattern = 'if \(!url\.SchemeIsHTTPOrHTTPS\(\)\) \{\n\s+return token;\n\s+\}'
+$hasHttpGuard = [regex]::IsMatch($content, $httpGuardPattern)
 $alreadyApplied = $content.Contains("GetSeedOverrideToken")
 
 Write-Host "=== Patch preflight ==="
@@ -106,9 +107,14 @@ if (-not $content.Contains($namespaceNeedle)) {
   throw "Could not find namespace anchor: $namespaceNeedle"
 }
 
-$content = $content.Replace(
-  $namespaceNeedle,
-  $seedFunction + $namespaceNeedle
+$content = [regex]::Replace(
+  $content,
+  '(?m)^}  // namespace$',
+  {
+    param($match)
+    $seedFunction + $match.Value
+  },
+  1
 )
 
 $overrideBlock = @'
@@ -129,21 +135,21 @@ $overrideBlock = @'
 
 '@
 
-$needle = @'
-  if (!url.SchemeIsHTTPOrHTTPS()) {
-    return token;
-  }
-'@
-
-if (-not $content.Contains($needle)) {
+$functionPattern = '(?s)(base::Token GetFarblingToken\(HostContentSettingsMap\* map,.*?if \(!url\.SchemeIsHTTPOrHTTPS\(\)\) \{\n\s+return token;\n\s+\})'
+if (-not [regex]::IsMatch($content, $functionPattern)) {
   $updatedLines = $content -split "`n"
   Show-NearbyMatches -Lines $updatedLines -Pattern 'GetFarblingToken|SchemeIsHTTPOrHTTPS|farbling_token' -Label "GetFarblingToken HTTP(S) guard anchor"
   throw "Could not find GetFarblingToken HTTP(S) guard anchor"
 }
 
-$content = $content.Replace(
-  $needle,
-  $needle + $overrideBlock
+$content = [regex]::Replace(
+  $content,
+  $functionPattern,
+  {
+    param($match)
+    $match.Value + "`n" + $overrideBlock.TrimEnd("`n")
+  },
+  1
 )
 
 [System.IO.File]::WriteAllText($target, $content, [System.Text.UTF8Encoding]::new($false))
