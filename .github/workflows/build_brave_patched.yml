@@ -211,26 +211,26 @@ jobs:
           Write-Host "Verified as integer: $parsed"
 
       - name: Generate missing build files
-              run: |
-                $env:PATH = "C:\depot_tools;$env:PATH"
-                Set-Location C:\brave\src
-      
-                # Generate DAWN_VERSION file if missing
-                $dawnVersion = "C:\brave\src\gpu\webgpu\DAWN_VERSION"
-                if (-not (Test-Path $dawnVersion)) {
-                  Write-Host "Generating DAWN_VERSION file"
-                  $dawnSrcVersion = "C:\brave\src\third_party\dawn\DAWN_VERSION"
-                  if (Test-Path $dawnSrcVersion) {
-                    Copy-Item $dawnSrcVersion $dawnVersion
-                    Write-Host "Copied DAWN_VERSION from Dawn source"
-                  } else {
-                    "0.0.0" | Set-Content $dawnVersion -Encoding ascii
-                    Write-Host "Created minimal DAWN_VERSION"
-                  }
-                }
-                Write-Host "DAWN_VERSION content:"
-                Get-Content $dawnVersion
-
+      - name: Generate missing build files
+        run: |
+          $env:PATH = "C:\depot_tools;$env:PATH"
+          Set-Location C:\brave\src
+        
+          # Generate DAWN_VERSION file if missing
+          $dawnVersion = "C:\brave\src\gpu\webgpu\DAWN_VERSION"
+          if (-not (Test-Path $dawnVersion)) {
+            Write-Host "Generating DAWN_VERSION file"
+            $dawnSrcVersion = "C:\brave\src\third_party\dawn\DAWN_VERSION"
+            if (Test-Path $dawnSrcVersion) {
+              Copy-Item $dawnSrcVersion $dawnVersion
+              Write-Host "Copied DAWN_VERSION from Dawn source"
+            } else {
+              "0.0.0" | Set-Content $dawnVersion -Encoding ascii
+              Write-Host "Created minimal DAWN_VERSION"
+            }
+          }
+          Write-Host "DAWN_VERSION content:"
+          Get-Content $dawnVersion
 
       - name: Configure build
         run: |
