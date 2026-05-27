@@ -226,6 +226,27 @@ jobs:
           '@ | Set-Content -Path out\Release_x64\args.gn -Encoding ascii
           gn gen out/Release_x64
 
+      - name: Fix devtools-frontend rollup native module
+        run: |
+          $devtoolsPath = "C:\brave\src\third_party\devtools-frontend\src"
+          if (Test-Path $devtoolsPath) {
+            Set-Location $devtoolsPath
+            Write-Host "Removing node_modules and package-lock.json..."
+            Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
+            Remove-Item -Force package-lock.json -ErrorAction SilentlyContinue
+            Write-Host "Reinstalling with npm..."
+            npm install --prefer-offline
+            Write-Host "Done. Verifying rollup native module..."
+            if (Test-Path "node_modules\@rollup\rollup-win32-x64-msvc") {
+              Write-Host "SUCCESS: @rollup/rollup-win32-x64-msvc found"
+            } else {
+              Write-Host "WARNING: still not found, build may fail"
+            }
+          } else {
+            Write-Host "devtools-frontend path not found, skipping"
+          }
+
+          
       - name: Build installer
         timeout-minutes: 360
         run: |
