@@ -211,6 +211,7 @@ jobs:
           enable_nacl = false
           symbol_level = 0
           enable_resource_allowlist_generation = false
+          chrome_pgo_phase = 0
           '@ | Set-Content -Path out\Release_x64\args.gn -Encoding ascii
           gn gen out/Release_x64
 
