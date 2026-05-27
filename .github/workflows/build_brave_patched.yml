@@ -225,24 +225,45 @@ jobs:
           chrome_pgo_phase = 0
           '@ | Set-Content -Path out\Release_x64\args.gn -Encoding ascii
           gn gen out/Release_x64
-          
+
       - name: Fix devtools-frontend rollup native module
         run: |
           $devtoolsPath = "C:\brave\src\third_party\devtools-frontend\src"
-          if (Test-Path $devtoolsPath) {
-            Set-Location $devtoolsPath
-            Write-Host "Installing only missing Rollup Windows native module..."
-            npm install @rollup/rollup-win32-x64-msvc --save-optional --no-package-lock
+          $rollupDest = Join-Path $devtoolsPath "node_modules\@rollup\rollup-win32-x64-msvc"
 
-            if (Test-Path "node_modules\@rollup\rollup-win32-x64-msvc") {
-              Write-Host "SUCCESS: @rollup/rollup-win32-x64-msvc found"
-            } else {
-              throw "FAILED: @rollup/rollup-win32-x64-msvc still not found"
-            }
-          } else {
+          if (-not (Test-Path $devtoolsPath)) {
             throw "devtools-frontend path not found: $devtoolsPath"
           }
 
+          if (Test-Path $rollupDest) {
+            Write-Host "SUCCESS: Rollup native module already exists"
+            exit 0
+          }
+
+          $tempPath = "C:\rollup-native-temp"
+          Remove-Item -Recurse -Force $tempPath -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force $tempPath | Out-Null
+          Set-Location $tempPath
+
+          Write-Host "Downloading Rollup Windows native package in clean temp folder..."
+          npm pack @rollup/rollup-win32-x64-msvc
+
+          $tgz = Get-ChildItem *.tgz | Select-Object -First 1
+          if (-not $tgz) {
+            throw "Rollup package tarball was not downloaded"
+          }
+
+          tar -xf $tgz.FullName
+
+          New-Item -ItemType Directory -Force (Split-Path $rollupDest) | Out-Null
+          Remove-Item -Recurse -Force $rollupDest -ErrorAction SilentlyContinue
+          Copy-Item -Recurse -Force "$tempPath\package" $rollupDest
+
+          if (Test-Path $rollupDest) {
+            Write-Host "SUCCESS: @rollup/rollup-win32-x64-msvc copied into DevTools node_modules"
+          } else {
+            throw "FAILED: @rollup/rollup-win32-x64-msvc still not found"
+          }
           
       - name: Build installer
         timeout-minutes: 360
