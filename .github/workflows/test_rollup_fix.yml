@@ -1,0 +1,29 @@
+name: Test Rollup Fix
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-rollup-fix:
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Test direct Rollup native package install
+        run: |
+          node --version
+          npm --version
+
+          New-Item -ItemType Directory -Force C:\rollup-test | Out-Null
+          Set-Location C:\rollup-test
+
+          npm init -y
+          npm install @rollup/rollup-win32-x64-msvc --save-optional --no-package-lock
+
+          if (Test-Path "node_modules\@rollup\rollup-win32-x64-msvc") {
+            Write-Host "SUCCESS: Rollup Windows native module installed"
+          } else {
+            throw "FAILED: Rollup Windows native module not installed"
+          }
