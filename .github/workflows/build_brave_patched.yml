@@ -194,22 +194,21 @@ jobs:
           # Verify gn is available
           gn --version
 
-          # Generate LASTCHANGE files required by build system
+          # Generate LASTCHANGE (git hash info)
           Set-Location C:\brave\src
           python3 build/util/lastchange.py -o build/util/LASTCHANGE
           if ($LASTEXITCODE -ne 0) {
             throw "Failed to generate LASTCHANGE"
           }
-          python3 build/util/lastchange.py `
-            --revision-id-only `
-            --header build/util/LASTCHANGE.h `
-            -o build/util/LASTCHANGE.committime
-          if ($LASTEXITCODE -ne 0) {
-            throw "Failed to generate LASTCHANGE.committime"
-          }
 
-          Write-Host "LASTCHANGE files generated successfully"
-          Get-Content build/util/LASTCHANGE.committime
+          # Generate LASTCHANGE.committime (Unix timestamp integer)
+          $timestamp = git -C C:\brave\src log -1 --format="%ct"
+          $timestamp | Set-Content build/util/LASTCHANGE.committime -Encoding ascii -NoNewline
+          Write-Host "LASTCHANGE.committime = $timestamp"
+
+          # Verify it is a valid integer
+          $parsed = [int64]$timestamp
+          Write-Host "Verified as integer: $parsed"
 
       - name: Configure build
         run: |
