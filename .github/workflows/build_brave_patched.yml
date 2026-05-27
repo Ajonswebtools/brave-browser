@@ -230,17 +230,17 @@ jobs:
         timeout-minutes: 360
         run: |
           Set-Location C:\brave\src
-          autoninja -C out\Release_x64 brave_installer
+          autoninja -C out\Release_x64 mini_installer
 
       - name: Upload patched Brave installer
         uses: actions/upload-artifact@v4
         with:
           name: brave-patched-windows-x64
           path: |
-            C:\brave\src\out\Release_x64\brave_installer.exe
-            C:\brave\src\out\Release_x64\BraveBrowserSetup.exe
-            C:\brave\src\out\Release_x64\brave_installer_setup.exe
-          if-no-files-found: error
+            C:\brave\src\out\Release_x64\mini_installer.exe
+            C:\brave\src\out\Release_x64\BraveBrowserSetup*.exe
+            C:\brave\src\out\Release_x64\brave_installer*.exe
+          if-no-files-found: warn
           retention-days: 7
 
       - name: Print build logs on failure
