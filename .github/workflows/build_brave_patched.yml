@@ -229,15 +229,19 @@ jobs:
       - name: Fix devtools-frontend rollup native module
         run: |
           $devtoolsPath = "C:\brave\src\third_party\devtools-frontend\src"
-          $rollupDest = Join-Path $devtoolsPath "node_modules\@rollup\rollup-win32-x64-msvc"
+          $rollupPackageJson = Join-Path $devtoolsPath "node_modules\rollup\package.json"
 
-          if (-not (Test-Path $devtoolsPath)) {
-            throw "devtools-frontend path not found: $devtoolsPath"
+          if (-not (Test-Path $rollupPackageJson)) {
+            throw "Rollup package.json not found: $rollupPackageJson"
           }
 
+          $rollupVersion = (Get-Content $rollupPackageJson -Raw | ConvertFrom-Json).version
+          Write-Host "Detected Rollup version: $rollupVersion"
+
+          $rollupDest = Join-Path $devtoolsPath "node_modules\@rollup\rollup-win32-x64-msvc"
+
           if (Test-Path $rollupDest) {
-            Write-Host "SUCCESS: Rollup native module already exists"
-            exit 0
+            Remove-Item -Recurse -Force $rollupDest -ErrorAction SilentlyContinue
           }
 
           $tempPath = "C:\rollup-native-temp"
@@ -245,8 +249,8 @@ jobs:
           New-Item -ItemType Directory -Force $tempPath | Out-Null
           Set-Location $tempPath
 
-          Write-Host "Downloading Rollup Windows native package in clean temp folder..."
-          npm pack @rollup/rollup-win32-x64-msvc
+          Write-Host "Downloading matching Rollup native package..."
+          npm pack "@rollup/rollup-win32-x64-msvc@$rollupVersion"
 
           $tgz = Get-ChildItem *.tgz | Select-Object -First 1
           if (-not $tgz) {
@@ -256,11 +260,10 @@ jobs:
           tar -xf $tgz.FullName
 
           New-Item -ItemType Directory -Force (Split-Path $rollupDest) | Out-Null
-          Remove-Item -Recurse -Force $rollupDest -ErrorAction SilentlyContinue
           Copy-Item -Recurse -Force "$tempPath\package" $rollupDest
 
           if (Test-Path $rollupDest) {
-            Write-Host "SUCCESS: @rollup/rollup-win32-x64-msvc copied into DevTools node_modules"
+            Write-Host "SUCCESS: matching @rollup/rollup-win32-x64-msvc@$rollupVersion copied"
           } else {
             throw "FAILED: @rollup/rollup-win32-x64-msvc still not found"
           }
