@@ -216,20 +216,18 @@ jobs:
           $env:PATH = "C:\depot_tools;$env:PATH"
           Set-Location C:\brave\src
         
-          # Generate DAWN_VERSION file if missing
+          # DAWN_VERSION must contain a 40-character git hash
           $dawnVersion = "C:\brave\src\gpu\webgpu\DAWN_VERSION"
-          if (-not (Test-Path $dawnVersion)) {
-            Write-Host "Generating DAWN_VERSION file"
-            $dawnSrcVersion = "C:\brave\src\third_party\dawn\DAWN_VERSION"
-            if (Test-Path $dawnSrcVersion) {
-              Copy-Item $dawnSrcVersion $dawnVersion
-              Write-Host "Copied DAWN_VERSION from Dawn source"
-            } else {
-              "0.0.0" | Set-Content $dawnVersion -Encoding ascii
-              Write-Host "Created minimal DAWN_VERSION"
-            }
+          $dawnDir = "C:\brave\src\third_party\dawn"
+        
+          # Get the actual git hash of the Dawn submodule
+          $hash = git -C $dawnDir rev-parse HEAD 2>$null
+          if ($hash -and $hash.Length -eq 40) {
+            $hash | Set-Content $dawnVersion -Encoding ascii -NoNewline
+            Write-Host "DAWN_VERSION set to: $hash"
+          } else {
+            throw "Could not get Dawn git hash. Got: $hash"
           }
-          Write-Host "DAWN_VERSION content:"
           Get-Content $dawnVersion
 
       - name: Configure build
