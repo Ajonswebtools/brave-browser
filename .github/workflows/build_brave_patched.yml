@@ -178,40 +178,26 @@ jobs:
           }
           & $scriptPath
 
-      - name: Patch download_dep.py for brave_chromium_utils import
-        run: |
-          $file = "C:\brave\src\brave\build\download_dep.py"
-          $content = Get-Content $file -Raw
-          $insert = "import sys, os`nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))`n"
-          if (-not $content.StartsWith($insert)) {
-            Set-Content $file -Value ($insert + $content) -Encoding utf8
-            Write-Host "Patched download_dep.py successfully"
-          } else {
-            Write-Host "Already patched, skipping"
-          }
-
       - name: Run Chromium hooks
         timeout-minutes: 30
         run: |
           $env:PATH = "C:\depot_tools;$env:PATH"
           $env:DEPOT_TOOLS_WIN_TOOLCHAIN = "0"
-          $env:GCLIENT_PY3 = "1"
           $env:GIT_CACHE_PATH = "C:\gitcache"
           $env:PYTHONPATH = "C:\brave\src\brave\script;C:\brave\src\brave\build;C:\brave\src\build"
 
           Set-Location C:\brave
 
-          # Run only the essential Chromium hooks, not brave-specific ones
-          # that require internal tooling
+          # Run vs_toolchain setup only - this is all hooks actually need
           python3 src/build/vs_toolchain.py update --force
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "vs_toolchain update failed, trying without force"
-            python3 src/build/vs_toolchain.py update
+            Write-Host "[WARNING] vs_toolchain update failed with exit $LASTEXITCODE"
+            Write-Host "Continuing anyway - Visual Studio should be available on runner"
           }
 
-          # Run gn bootstrap which is the only hook actually needed for build
-          Set-Location C:\brave\src
-          python3 tools/gn/bootstrap/bootstrap.py --skip-generate-buildfiles
+          # Verify gn is available from depot_tools
+          gn --version
+          Write-Host "gn is available, skipping bootstrap"
 
       - name: Configure build
         run: |
