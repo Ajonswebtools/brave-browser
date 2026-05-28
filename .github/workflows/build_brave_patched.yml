@@ -9,7 +9,7 @@ concurrency:
 
 env:
   BRAVE_CORE_REF: master
-  DEPOT_TOOLS_WIN_TOOLCHAIN: 0
+  DEPOT_TOOLS_WIN_TOOLCHAIN: 1
   USE_BRAVE_HERMETIC_TOOLCHAIN: 1
   PYTHONUNBUFFERED: 1
 
@@ -184,7 +184,7 @@ jobs:
         timeout-minutes: 30
         run: |
           $env:PATH = "C:\depot_tools;$env:PATH"
-          $env:DEPOT_TOOLS_WIN_TOOLCHAIN = "0"
+          $env:DEPOT_TOOLS_WIN_TOOLCHAIN = "1"
           $sdkBin = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64"
           if (Test-Path $sdkBin) { $env:PATH = "$sdkBin;$env:PATH" }
           Set-Location C:\brave
@@ -297,6 +297,7 @@ jobs:
         timeout-minutes: 360
         run: |
           $env:PATH = "C:\depot_tools;$env:PATH"
+          $env:DEPOT_TOOLS_WIN_TOOLCHAIN = "1"
           $sdkBin = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64"
           if (Test-Path $sdkBin) { $env:PATH = "$sdkBin;$env:PATH" }
           Set-Location C:\brave\src
