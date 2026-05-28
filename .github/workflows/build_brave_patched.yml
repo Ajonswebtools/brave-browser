@@ -103,7 +103,6 @@ jobs:
               "managed": False,
 
               "custom_deps": {
-                "src/third_party/harfbuzz/src": None,
                 "src/third_party/freetype/src": None,
                 "src/third_party/expat/src": None,
                 "src/third_party/wpt_tools": None,
