@@ -102,11 +102,7 @@ jobs:
               "url": "https://chromium.googlesource.com/chromium/src.git",
               "managed": False,
 
-              "custom_deps": {
-                "src/third_party/freetype/src": None,
-                "src/third_party/wpt_tools": None,
-                "src/third_party/grpc": None,
-              },
+              "custom_deps": {},
               
               "custom_vars": {
                 "checkout_pgo_profiles": False,
