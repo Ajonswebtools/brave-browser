@@ -185,6 +185,8 @@ jobs:
         run: |
           $env:PATH = "C:\depot_tools;$env:PATH"
           $env:DEPOT_TOOLS_WIN_TOOLCHAIN = "0"
+          $sdkBin = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64"
+          if (Test-Path $sdkBin) { $env:PATH = "$sdkBin;$env:PATH" }
           Set-Location C:\brave
 
           # VS toolchain setup
@@ -245,7 +247,7 @@ jobs:
           symbol_level = 0
           enable_resource_allowlist_generation = false
           chrome_pgo_phase = 0
-          enable_swiftshader = false
+          use_thin_lto = false
           '@ | Set-Content -Path out\Release_x64\args.gn -Encoding ascii
           gn gen out/Release_x64
 
@@ -294,6 +296,9 @@ jobs:
       - name: Build installer
         timeout-minutes: 360
         run: |
+          $env:PATH = "C:\depot_tools;$env:PATH"
+          $sdkBin = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64"
+          if (Test-Path $sdkBin) { $env:PATH = "$sdkBin;$env:PATH" }
           Set-Location C:\brave\src
           autoninja -C out\Release_x64 mini_installer
 
