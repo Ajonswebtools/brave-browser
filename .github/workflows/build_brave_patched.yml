@@ -101,7 +101,16 @@ jobs:
               "name": "src",
               "url": "https://chromium.googlesource.com/chromium/src.git",
               "managed": False,
-              "custom_deps": {},
+
+              "custom_deps": {
+                "src/third_party/harfbuzz/src": None,
+                "src/third_party/catapult": None,
+                "src/third_party/freetype/src": None,
+                "src/third_party/expat/src": None,
+                "src/third_party/wpt_tools": None,
+                "src/third_party/grpc": None,
+              },
+              
               "custom_vars": {
                 "checkout_pgo_profiles": False,
                 "checkout_configuration": "minimal",
@@ -140,7 +149,7 @@ jobs:
           git config --global fetch.parallel 4
 
       - name: Sync brave source with gclient
-        timeout-minutes: 180
+        timeout-minutes: 240
         run: |
           $env:PATH = "C:\depot_tools;$env:PATH"
           $env:DEPOT_TOOLS_WIN_TOOLCHAIN = "0"
