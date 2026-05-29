@@ -325,7 +325,12 @@ jobs:
           $env:PATH = "C:\depot_tools;$env:PATH"
           $env:DEPOT_TOOLS_WIN_TOOLCHAIN = "0"
           $sdkBin = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64"
-          if (Test-Path $sdkBin) { $env:PATH = "$sdkBin;$env:PATH" }
+          if (-not (Test-Path $sdkBin)) {
+            $rc = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "rc.exe" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
+            if ($rc) { $sdkBin = $rc.DirectoryName }
+          }
+          Write-Host "Using SDK bin: $sdkBin"
+          $env:PATH = "$sdkBin;$env:PATH"
           Set-Location C:\brave\src
           autoninja -C out\Release_x64 mini_installer
 
