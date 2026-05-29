@@ -318,6 +318,21 @@ jobs:
           rc.exe /? 2>&1 | Select-Object -First 2
           Write-Host "rc.exe is ready."
 
+      - name: Patch rc.py to use absolute rc.exe path
+        timeout-minutes: 5
+        run: |
+          $rcFile = "C:\brave\src\build\toolchain\win\rc\rc.py"
+          $rc = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "rc.exe" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
+          if (-not $rc) {
+            throw "rc.exe not found anywhere under Windows Kits"
+          }
+          $rcPath = $rc.FullName.Replace("\", "/")
+          Write-Host "Patching rc.py to use: $rcPath"
+          $content = Get-Content $rcFile -Raw
+          $content = $content -replace "rc_cmd = \['rc\.exe'", "rc_cmd = ['$rcPath'"
+          Set-Content $rcFile -Value $content -Encoding utf8
+          Write-Host "Patch applied. Verifying..."
+          Select-String -Path $rcFile -Pattern "rc_cmd"
           
       - name: Build installer
         timeout-minutes: 360
