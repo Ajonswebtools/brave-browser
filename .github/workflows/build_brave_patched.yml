@@ -293,51 +293,30 @@ jobs:
             throw "FAILED: @rollup/rollup-win32-x64-msvc still not found"
           }
 
-      - name: Ensure rc.exe is available
-        timeout-minutes: 30
-        run: |
-          $rc = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "rc.exe" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
-          if ($rc) {
-            Write-Host "Found rc.exe at: $($rc.FullName)"
-            $rcDir = $rc.DirectoryName
-          } else {
-            Write-Host "rc.exe not found, downloading Windows SDK via choco..."
-            choco install windows-sdk-10-version-2004-all -y --no-progress
-            $rc = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "rc.exe" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
-            if ($rc) {
-              Write-Host "rc.exe now found at: $($rc.FullName)"
-              $rcDir = $rc.DirectoryName
-            } else {
-              throw "rc.exe could not be found even after SDK install. Build cannot continue."
-            }
-          }
-          Write-Host "Adding $rcDir to system PATH..."
-          $currentPath = [System.Environment]::GetEnvironmentVariable("PATH", "Machine")
-          [System.Environment]::SetEnvironmentVariable("PATH", "$rcDir;$currentPath", "Machine")
-          $env:PATH = "$rcDir;$env:PATH"
-          rc.exe /? 2>&1 | Select-Object -First 2
-          Write-Host "rc.exe is ready."
 
-      - name: Copy rc.exe next to rc.py
+      - name: Inject rc.exe into environment.x64
         timeout-minutes: 5
         run: |
-          $rcTarget = "C:\brave\src\build\toolchain\win\rc\rc.exe"
-          if (Test-Path $rcTarget) {
-            Write-Host "rc.exe already exists at target, skipping"
-            exit 0
+          $envFile = "C:\brave\src\out\Release_x64\environment.x64"
+          if (-not (Test-Path $envFile)) {
+            throw "environment.x64 not found at $envFile"
           }
           $rc = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "rc.exe" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
           if (-not $rc) {
-            Write-Host "rc.exe not found, installing Windows SDK..."
-            choco install windows-sdk-10-version-2004-all -y --no-progress
-            $rc = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "rc.exe" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
+            throw "rc.exe not found under Windows Kits - cannot inject into environment.x64"
           }
-          if (-not $rc) {
-            throw "rc.exe could not be found even after SDK install"
+          $rcDir = $rc.DirectoryName
+          Write-Host "rc.exe found at: $($rc.FullName)"
+          Write-Host "Injecting $rcDir into environment.x64..."
+          $bytes = [System.IO.File]::ReadAllBytes($envFile)
+          $text = [System.Text.Encoding]::Unicode.GetString($bytes)
+          if ($text -notmatch [regex]::Escape($rcDir)) {
+            $text = $text -replace '(?i)(PATH=)', "`$1$rcDir;"
+            [System.IO.File]::WriteAllBytes($envFile, [System.Text.Encoding]::Unicode.GetBytes($text))
+            Write-Host "Done. Injected rc.exe path into environment.x64"
+          } else {
+            Write-Host "rc.exe path already present in environment.x64, skipping"
           }
-          Write-Host "Copying $($rc.FullName) to $rcTarget"
-          Copy-Item -Path $rc.FullName -Destination $rcTarget -Force
-          Write-Host "Done. rc.exe is now at: $rcTarget"
           
       - name: Build installer
         timeout-minutes: 360
