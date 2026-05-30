@@ -318,21 +318,26 @@ jobs:
           rc.exe /? 2>&1 | Select-Object -First 2
           Write-Host "rc.exe is ready."
 
-      - name: Patch rc.py to use absolute rc.exe path
+      - name: Copy rc.exe next to rc.py
         timeout-minutes: 5
         run: |
-          $rcFile = "C:\brave\src\build\toolchain\win\rc\rc.py"
+          $rcTarget = "C:\brave\src\build\toolchain\win\rc\rc.exe"
+          if (Test-Path $rcTarget) {
+            Write-Host "rc.exe already exists at target, skipping"
+            exit 0
+          }
           $rc = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "rc.exe" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
           if (-not $rc) {
-            throw "rc.exe not found anywhere under Windows Kits"
+            Write-Host "rc.exe not found, installing Windows SDK..."
+            choco install windows-sdk-10-version-2004-all -y --no-progress
+            $rc = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "rc.exe" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
           }
-          $rcPath = $rc.FullName.Replace("\", "/")
-          Write-Host "Patching rc.py to use: $rcPath"
-          $content = Get-Content $rcFile -Raw
-          $content = $content -replace "rc_cmd = \['rc\.exe'", "rc_cmd = ['$rcPath'"
-          Set-Content $rcFile -Value $content -Encoding utf8
-          Write-Host "Patch applied. Verifying..."
-          Select-String -Path $rcFile -Pattern "rc_cmd"
+          if (-not $rc) {
+            throw "rc.exe could not be found even after SDK install"
+          }
+          Write-Host "Copying $($rc.FullName) to $rcTarget"
+          Copy-Item -Path $rc.FullName -Destination $rcTarget -Force
+          Write-Host "Done. rc.exe is now at: $rcTarget"
           
       - name: Build installer
         timeout-minutes: 360
