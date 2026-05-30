@@ -185,7 +185,7 @@ jobs:
         run: |
           $env:PATH = "C:\depot_tools;$env:PATH"
           $env:DEPOT_TOOLS_WIN_TOOLCHAIN = "0"
-          $sdkBin = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64"
+          $sdkBin = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.17763.0\x64"
           if (Test-Path $sdkBin) { $env:PATH = "$sdkBin;$env:PATH" }
           Set-Location C:\brave
 
@@ -311,7 +311,7 @@ jobs:
           $bytes = [System.IO.File]::ReadAllBytes($envFile)
           $text = [System.Text.Encoding]::Unicode.GetString($bytes)
           if ($text -notmatch [regex]::Escape($rcDir)) {
-            $text = $text -replace '(?i)(PATH=)', "`$1$rcDir;"
+            $text = $text -replace '(PATH=)([^\x00]+)', "`$1$rcDir;`$2"
             [System.IO.File]::WriteAllBytes($envFile, [System.Text.Encoding]::Unicode.GetBytes($text))
             Write-Host "Done. Injected rc.exe path into environment.x64"
           } else {
@@ -323,7 +323,7 @@ jobs:
         run: |
           $env:PATH = "C:\depot_tools;$env:PATH"
           $env:DEPOT_TOOLS_WIN_TOOLCHAIN = "0"
-          $sdkBin = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64"
+          $sdkBin = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.17763.0\x64"
           if (-not (Test-Path $sdkBin)) {
             $rc = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "rc.exe" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
             if ($rc) { $sdkBin = $rc.DirectoryName }
