@@ -294,34 +294,25 @@ jobs:
           }
 
 
-      - name: Inject rc.exe into environment.x64
+      - name: Patch tool_wrapper.py to inject rc.exe path
         timeout-minutes: 5
         run: |
-          $envFile = "C:\brave\src\out\Release_x64\environment.x64"
-          if (-not (Test-Path $envFile)) {
-            throw "environment.x64 not found at $envFile"
-          }
           $rc = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "rc.exe" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
           if (-not $rc) {
-            throw "rc.exe not found under Windows Kits - cannot inject into environment.x64"
+            throw "rc.exe not found under Windows Kits"
           }
-          $rcDir = $rc.DirectoryName
+          $rcDir = $rc.DirectoryName.Replace("\", "\\")
           Write-Host "rc.exe found at: $($rc.FullName)"
-          Write-Host "Injecting $rcDir into environment.x64..."
-          $content = Get-Content $envFile -Raw
-          if ($content -notmatch [regex]::Escape($rcDir)) {
-            $lines = $content -split "`r`n|`n"
-            $fixed = $lines | ForEach-Object {
-              if ($_ -match '^PATH=(.+)$') {
-                "PATH=$rcDir;" + $Matches[1]
-              } else {
-                $_
-              }
-            }
-            $fixed -join "`n" | Set-Content $envFile -Encoding ascii -NoNewline
-            Write-Host "Done. Injected rc.exe path into environment.x64"
+          $toolWrapper = "C:\brave\src\build\toolchain\win\tool_wrapper.py"
+          $content = Get-Content $toolWrapper -Raw
+          $rcDirEscaped = $rc.DirectoryName.Replace("\", "\\")
+          $injection = "# DMask rc.exe PATH injection`nimport os`n_rc_dir = r'$($rc.DirectoryName)'`nif _rc_dir not in os.environ.get('PATH', ''):`n    os.environ['PATH'] = _rc_dir + os.pathsep + os.environ.get('PATH', '')`n"
+          if ($content -notmatch "DMask rc.exe PATH injection") {
+            $content = $injection + $content
+            Set-Content $toolWrapper -Value $content -Encoding utf8
+            Write-Host "Patched tool_wrapper.py successfully"
           } else {
-            Write-Host "rc.exe path already present in environment.x64, skipping"
+            Write-Host "Already patched, skipping"
           }
           
       - name: Build installer
