@@ -314,6 +314,20 @@ jobs:
           } else {
             Write-Host "Already patched, skipping"
           }
+
+      - name: Verify tool_wrapper.py patch
+        timeout-minutes: 2
+        run: |
+          $toolWrapper = "C:\brave\src\build\toolchain\win\tool_wrapper.py"
+          $content = Get-Content $toolWrapper -Raw
+          if ($content -match "DMask rc.exe PATH injection") {
+            Write-Host "PATCH VERIFIED: injection found in tool_wrapper.py"
+            $content | Select-String "_rc_dir"
+          } else {
+            throw "PATCH MISSING: tool_wrapper.py was not patched correctly"
+          }
+          Write-Host "First 20 lines of tool_wrapper.py:"
+          Get-Content $toolWrapper | Select-Object -First 20
           
       - name: Build installer
         timeout-minutes: 360
