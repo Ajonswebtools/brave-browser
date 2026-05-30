@@ -311,7 +311,15 @@ jobs:
           $bytes = [System.IO.File]::ReadAllBytes($envFile)
           $text = [System.Text.Encoding]::Unicode.GetString($bytes)
           if ($text -notmatch [regex]::Escape($rcDir)) {
-            $text = $text -replace '(PATH=)([^\x00]+)', "`$1$rcDir;`$2"
+            $lines = $text -split "`0"
+            $fixed = $lines | ForEach-Object {
+              if ($_ -match '^PATH=(.+)$') {
+                "PATH=$rcDir;" + $Matches[1]
+              } else {
+                $_
+              }
+            }
+            $text = $fixed -join "`0"
             [System.IO.File]::WriteAllBytes($envFile, [System.Text.Encoding]::Unicode.GetBytes($text))
             Write-Host "Done. Injected rc.exe path into environment.x64"
           } else {
