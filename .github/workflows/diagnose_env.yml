@@ -1,0 +1,71 @@
+name: Diagnose Environment X64
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.PAT_TOKEN }}
+
+      - name: Install depot_tools
+        run: |
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git C:\depot_tools
+          'C:\depot_tools' | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $env:PATH = "C:\depot_tools;$env:PATH"
+          gclient --version
+
+      - name: Create minimal gn environment to generate environment.x64
+        run: |
+          $env:PATH = "C:\depot_tools;$env:PATH"
+          $env:DEPOT_TOOLS_WIN_TOOLCHAIN = "0"
+          New-Item -ItemType Directory -Force C:\testbuild\src\out\Release_x64 | Out-Null
+          Set-Location C:\testbuild\src
+
+          # Create a minimal BUILD.gn
+          @'
+          group("all") {}
+          '@ | Set-Content BUILD.gn -Encoding ascii
+
+          # Create minimal args.gn
+          @'
+          target_cpu = "x64"
+          '@ | Set-Content out\Release_x64\args.gn -Encoding ascii
+
+          # Run vs_toolchain to generate environment.x64
+          python3 C:\depot_tools\win_toolchain\get_toolchain_if_necessary.py --output-json C:\testbuild\toolchain.json --no-download 2>&1 | Write-Host
+          python3 C:\brave\src\build\vs_toolchain.py get_toolchain_dir 2>&1 | Write-Host
+
+      - name: Print raw environment.x64 contents
+        run: |
+          $envFile = "C:\testbuild\src\out\Release_x64\environment.x64"
+          if (-not (Test-Path $envFile)) {
+            Write-Host "environment.x64 NOT FOUND - checking other locations..."
+            Get-ChildItem -Path C:\ -Recurse -Filter "environment.x64" -ErrorAction SilentlyContinue | Select-Object FullName
+            exit 0
+          }
+          Write-Host "=== FILE SIZE ==="
+          (Get-Item $envFile).Length
+          Write-Host "=== RAW BYTES (first 500) ==="
+          $bytes = [System.IO.File]::ReadAllBytes($envFile)
+          Write-Host "First 500 bytes as hex:"
+          ($bytes | Select-Object -First 500 | ForEach-Object { $_.ToString("X2") }) -join " "
+          Write-Host "=== CONTENT AS UTF16 ==="
+          $text = [System.Text.Encoding]::Unicode.GetString($bytes)
+          Write-Host "Length of decoded text: $($text.Length)"
+          Write-Host "Null char count: $(($text.ToCharArray() | Where-Object { $_ -eq [char]0 }).Count)"
+          $lines = $text -split [char]0
+          Write-Host "=== SPLIT ON NULL - $($lines.Count) segments ==="
+          for ($i = 0; $i -lt [Math]::Min($lines.Count, 30); $i++) {
+            Write-Host "[$i] len=$($lines[$i].Length): '$($lines[$i])'"
+          }
