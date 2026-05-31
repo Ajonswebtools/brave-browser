@@ -298,28 +298,15 @@ jobs:
         timeout-minutes: 5
         run: |
           $rcTarget = "C:\brave\src\build\toolchain\win\rc\win\rc.exe"
-          if (Test-Path $rcTarget) {
-            Write-Host "rc.exe already exists at expected path, skipping"
-            exit 0
+          $rcSource = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\rc.exe"
+          if (-not (Test-Path $rcSource)) {
+            throw "rc.exe not found at expected location: $rcSource"
           }
-          $preferredSdk = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.17763.0\x64\rc.exe"
-          if (Test-Path $preferredSdk) {
-            Write-Host "Found preferred rc.exe at: $preferredSdk"
-            $rcSource = $preferredSdk
-          } else {
-            Write-Host "10.0.17763.0 not found, searching for any x64 rc.exe..."
-            $rc = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "rc.exe" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
-            if (-not $rc) {
-              throw "rc.exe could not be found under Windows Kits"
-            }
-            $rcSource = $rc.FullName
-          }
-          Write-Host "Using rc.exe from: $rcSource"
           New-Item -ItemType Directory -Force -Path (Split-Path $rcTarget) | Out-Null
           Copy-Item -Path $rcSource -Destination $rcTarget -Force
-          Write-Host "VERIFIED: rc.exe copied to $rcTarget"
           if (Test-Path $rcTarget) {
-            Write-Host "VERIFIED: rc.exe is now at the correct path"
+            Write-Host "VERIFIED: rc.exe copied from $rcSource to $rcTarget"
+            (Get-Item $rcTarget).Length
           } else {
             throw "FAILED: rc.exe copy did not succeed"
           }
