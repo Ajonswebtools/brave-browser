@@ -252,6 +252,25 @@ jobs:
           '@ | Set-Content -Path out\Release_x64\args.gn -Encoding ascii
           gn gen out/Release_x64
 
+      - name: Copy rc.exe to path expected by rc.py
+        timeout-minutes: 5
+        run: |
+          $rcTarget = "C:\brave\src\build\toolchain\win\rc\win\rc.exe"
+          $rcSource = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\rc.exe"
+          if (-not (Test-Path $rcSource)) {
+            throw "rc.exe not found at expected location: $rcSource"
+          }
+          New-Item -ItemType Directory -Force -Path (Split-Path $rcTarget) | Out-Null
+          Copy-Item -Path $rcSource -Destination $rcTarget -Force
+          if (Test-Path $rcTarget) {
+            Write-Host "VERIFIED: rc.exe copied from $rcSource to $rcTarget"
+            (Get-Item $rcTarget).Length
+          } else {
+            throw "FAILED: rc.exe copy did not succeed"
+          }
+          Write-Host "=== Verifying rc.win directory contents ==="
+          Get-ChildItem "C:\brave\src\build\toolchain\win\rc\win" | Select-Object Name, Length
+
       - name: Fix devtools-frontend rollup native module
         run: |
           $devtoolsPath = "C:\brave\src\third_party\devtools-frontend\src"
@@ -292,23 +311,6 @@ jobs:
             Write-Host "SUCCESS: matching @rollup/rollup-win32-x64-msvc@$rollupVersion copied"
           } else {
             throw "FAILED: @rollup/rollup-win32-x64-msvc still not found"
-          }
-
-      - name: Copy rc.exe to path expected by rc.py
-        timeout-minutes: 5
-        run: |
-          $rcTarget = "C:\brave\src\build\toolchain\win\rc\win\rc.exe"
-          $rcSource = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\rc.exe"
-          if (-not (Test-Path $rcSource)) {
-            throw "rc.exe not found at expected location: $rcSource"
-          }
-          New-Item -ItemType Directory -Force -Path (Split-Path $rcTarget) | Out-Null
-          Copy-Item -Path $rcSource -Destination $rcTarget -Force
-          if (Test-Path $rcTarget) {
-            Write-Host "VERIFIED: rc.exe copied from $rcSource to $rcTarget"
-            (Get-Item $rcTarget).Length
-          } else {
-            throw "FAILED: rc.exe copy did not succeed"
           }
 
       - name: Diagnose Windows SDK versions
