@@ -368,19 +368,86 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Print build logs on failure
+      - name: Auto-diagnose build failure
         if: failure()
+        timeout-minutes: 10
         run: |
+          Write-Host "=========================================="
+          Write-Host "AUTO DIAGNOSIS REPORT"
+          Write-Host "=========================================="
+
+          Write-Host "`n=== LAST BUILD ERROR ==="
           $logs = Get-ChildItem -Path C:\brave\src\out\Release_x64 -Filter *.log -Recurse -ErrorAction SilentlyContinue
-          if (-not $logs) {
-            Write-Host 'No .log files found under out\Release_x64'
-            exit 0
+          foreach ($log in $logs) {
+            Write-Host "--- $($log.FullName) ---"
+            Get-Content $log.FullName -Tail 50
           }
 
-          foreach ($log in $logs) {
-            Write-Host "===== $($log.FullName) ====="
-            Get-Content $log.FullName -Tail 100
+          Write-Host "`n=== ALL RC.EXE LOCATIONS ==="
+          Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits" -Recurse -Filter "rc.exe" -ErrorAction SilentlyContinue | Select-Object FullName
+
+          Write-Host "`n=== ALL ML64.EXE LOCATIONS ==="
+          Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits" -Recurse -Filter "ml64.exe" -ErrorAction SilentlyContinue | Select-Object FullName
+          Get-ChildItem -Path "C:\Program Files\Microsoft Visual Studio" -Recurse -Filter "ml64.exe" -ErrorAction SilentlyContinue | Select-Object FullName
+
+          Write-Host "`n=== WINDOWS SDK BIN VERSIONS INSTALLED ==="
+          Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -ErrorAction SilentlyContinue | Select-Object Name
+
+          Write-Host "`n=== WINDOWS SDK INCLUDE VERSIONS INSTALLED ==="
+          Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\include" -ErrorAction SilentlyContinue | Select-Object Name
+
+          Write-Host "`n=== WIN TOOLCHAIN JSON ==="
+          if (Test-Path "C:\brave\src\build\win_toolchain.json") {
+            Get-Content "C:\brave\src\build\win_toolchain.json"
+          } else {
+            Write-Host "win_toolchain.json not found"
           }
+
+          Write-Host "`n=== ENVIRONMENT.X64 CONTENTS ==="
+          $envFile = "C:\brave\src\out\Release_x64\environment.x64"
+          if (Test-Path $envFile) {
+            $content = Get-Content $envFile -Raw
+            $lines = $content -split "`n"
+            foreach ($line in $lines) {
+              if ($line.Trim() -ne "") {
+                Write-Host $line
+              }
+            }
+          } else {
+            Write-Host "environment.x64 not found"
+          }
+
+          Write-Host "`n=== RC.PY FIRST 30 LINES ==="
+          $rcPy = "C:\brave\src\build\toolchain\win\rc\rc.py"
+          if (Test-Path $rcPy) {
+            Get-Content $rcPy | Select-Object -First 30
+          }
+
+          Write-Host "`n=== RC.PY WIN DIRECTORY CONTENTS ==="
+          $rcWinDir = "C:\brave\src\build\toolchain\win\rc\win"
+          if (Test-Path $rcWinDir) {
+            Get-ChildItem $rcWinDir | Select-Object Name, Length
+          } else {
+            Write-Host "rc\win directory does not exist"
+          }
+
+          Write-Host "`n=== DISK SPACE ==="
+          [System.IO.DriveInfo]::GetDrives() |
+            Where-Object { $_.DriveType -eq 'Fixed' -and $_.IsReady } |
+            ForEach-Object {
+              [PSCustomObject]@{
+                Drive = $_.Name
+                FreeGB = [math]::Round($_.AvailableFreeSpace / 1GB, 2)
+                TotalGB = [math]::Round($_.TotalSize / 1GB, 2)
+              }
+            } | Format-Table -AutoSize
+
+          Write-Host "`n=== VS TOOLCHAIN PATH ==="
+          python3 C:\brave\src\build\vs_toolchain.py get_toolchain_dir 2>&1
+
+          Write-Host "=========================================="
+          Write-Host "END OF AUTO DIAGNOSIS REPORT"
+          Write-Host "=========================================="
 
       - name: Upload build logs on failure
         if: failure()
