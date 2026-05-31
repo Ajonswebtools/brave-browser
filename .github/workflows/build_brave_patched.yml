@@ -323,6 +323,25 @@ jobs:
           } else {
             throw "FAILED: rc.exe copy did not succeed"
           }
+
+      - name: Diagnose Windows SDK versions
+        timeout-minutes: 5
+        run: |
+          Write-Host "=== All rc.exe files found ==="
+          Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits" -Recurse -Filter "rc.exe" -ErrorAction SilentlyContinue | Select-Object FullName
+
+          Write-Host "=== Windows SDK bin directories ==="
+          Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -ErrorAction SilentlyContinue | Select-Object Name
+
+          Write-Host "=== Windows SDK include directories ==="
+          Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\include" -ErrorAction SilentlyContinue | Select-Object Name
+
+          Write-Host "=== VS toolchain json ==="
+          if (Test-Path "C:\brave\src\build\win_toolchain.json") {
+            Get-Content "C:\brave\src\build\win_toolchain.json"
+          } else {
+            Write-Host "win_toolchain.json not found"
+          }
       - name: Build installer
         timeout-minutes: 360
         run: |
