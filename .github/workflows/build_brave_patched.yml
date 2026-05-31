@@ -293,42 +293,27 @@ jobs:
             throw "FAILED: @rollup/rollup-win32-x64-msvc still not found"
           }
 
-
-      - name: Patch tool_wrapper.py to inject rc.exe path
+      - name: Copy rc.exe to path expected by rc.py
         timeout-minutes: 5
         run: |
+          $rcTarget = "C:\brave\src\build\toolchain\win\rc\win\rc.exe"
+          if (Test-Path $rcTarget) {
+            Write-Host "rc.exe already exists at expected path, skipping"
+            exit 0
+          }
           $rc = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter "rc.exe" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
           if (-not $rc) {
             throw "rc.exe not found under Windows Kits"
           }
-          $rcDir = $rc.DirectoryName.Replace("\", "\\")
-          Write-Host "rc.exe found at: $($rc.FullName)"
-          $toolWrapper = "C:\brave\src\build\toolchain\win\tool_wrapper.py"
-          $content = Get-Content $toolWrapper -Raw
-          $rcDirEscaped = $rc.DirectoryName.Replace("\", "\\")
-          $injection = "# DMask rc.exe PATH injection`nimport os`n_rc_dir = r'$($rc.DirectoryName)'`nif _rc_dir not in os.environ.get('PATH', ''):`n    os.environ['PATH'] = _rc_dir + os.pathsep + os.environ.get('PATH', '')`n"
-          if ($content -notmatch "DMask rc.exe PATH injection") {
-            $content = $injection + $content
-            Set-Content $toolWrapper -Value $content -Encoding utf8
-            Write-Host "Patched tool_wrapper.py successfully"
+          Write-Host "Found rc.exe at: $($rc.FullName)"
+          New-Item -ItemType Directory -Force -Path (Split-Path $rcTarget) | Out-Null
+          Copy-Item -Path $rc.FullName -Destination $rcTarget -Force
+          Write-Host "Copied rc.exe to: $rcTarget"
+          if (Test-Path $rcTarget) {
+            Write-Host "VERIFIED: rc.exe is now at the correct path"
           } else {
-            Write-Host "Already patched, skipping"
+            throw "FAILED: rc.exe copy did not succeed"
           }
-
-      - name: Verify tool_wrapper.py patch
-        timeout-minutes: 2
-        run: |
-          $toolWrapper = "C:\brave\src\build\toolchain\win\tool_wrapper.py"
-          $content = Get-Content $toolWrapper -Raw
-          if ($content -match "DMask rc.exe PATH injection") {
-            Write-Host "PATCH VERIFIED: injection found in tool_wrapper.py"
-            $content | Select-String "_rc_dir"
-          } else {
-            throw "PATCH MISSING: tool_wrapper.py was not patched correctly"
-          }
-          Write-Host "First 20 lines of tool_wrapper.py:"
-          Get-Content $toolWrapper | Select-Object -First 20
-          
       - name: Build installer
         timeout-minutes: 360
         run: |
